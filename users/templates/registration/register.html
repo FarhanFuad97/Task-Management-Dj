@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+    <div class='w-1/2 mx-auto my-9 '>
+        {% if form.non_field_errors %}
+        {% for error in form.non_field_errors %}
+        
+        {% endfor %}
+        {% endif %}
+        <form action="" method="POST">
+            {% csrf_token %}
+                {% for field in form %}
+              <p>
+                <label for="{{field.id_for_label}}">{{field.label}}</label>
+
+                {% if field.errors %}
+                
+                <ul>
+                    {% for error in field.errors %}
+                    <li>{{error}}</li>
+                    {% endfor %}
+                </ul>
+                
+                {% endif %}
+              </p>
+              {{field}}
+            {% endfor %}
+           
+            <button class='bg-blue-600 text-white rounded p-2 mt-2 m-1' type = "submit">Sing Up</button>
+        </form>
+    </div>
+    {% endblock content %}
