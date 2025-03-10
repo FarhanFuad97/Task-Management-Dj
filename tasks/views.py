@@ -10,9 +10,10 @@ from users.views import is_admin
 from django.http import HttpResponse
 from django.views import View
 from django.utils.decorators import method_decorator
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.mixins import PermissionRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin,UserPassesTestMixin,PermissionRequiredMixin
 from django.views.generic.base import ContextMixin
+from django.views.generic import ListView, TemplateView
+
 
 
 
@@ -37,45 +38,95 @@ def is_employee(user):
 
 
 
-@user_passes_test(is_manager, login_url='no-permission')
-def manager_dashboard(request):
-    type = request.GET.get('type', 'all')
-
-    
-
-    
-    counts = Task.objects.aggregate(
-        total = Count('id'),
-        completed = Count('id', filter=Q(status='COMPLETED')),
-        in_progress=Count('id', filter=Q(status = 'IN_PROGRESS')),
-        pending=Count('id', filter=Q(status = 'PENDING')),
 
 
-        )
-    
-    # Retriving task data
-
-    base_query = Task.objects.select_related('details').prefetch_related('assigned_to')
-
-    if type == 'completed':
-        tasks = base_query.filter(status= 'COMPLETED')
-    elif type == 'in-progress':
-        tasks = base_query.filter(status= 'IN_PROGRESS')
-    elif type == 'pending':
-        tasks = base_query.filter(status= 'PENDING')
-    elif type == 'all':
-        tasks = base_query.all()
-
-
-    context = {
-        "tasks": tasks,
-        "counts": counts,
-        "role": 'manager'
-    }
-    return render(request, "dashboard/manager-dashboard.html", context)
-@user_passes_test(is_employee)
 def employee_dashboard(request):
-    return render(request, "dashboard/user-dashboard.html")
+    return HttpResponse("Employee Dashboard")
+
+
+class manager_dashboard(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    template_name = "dashboard/manager-dashboard.html"
+    context_object_name = "tasks"
+    model = Task
+
+    def test_func(self):
+        return is_manager(self.request.user)
+
+    def get_queryset(self):
+        type = self.request.GET.get('type', 'all')
+        base_query = Task.objects.select_related('details').prefetch_related('assigned_to')
+
+        if type == 'completed':
+            return base_query.filter(status='COMPLETED')
+        elif type == 'in-progress':
+            return base_query.filter(status='IN_PROGRESS')
+        elif type == 'pending':
+            return base_query.filter(status='PENDING')
+        return base_query.all()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["counts"] = Task.objects.aggregate(
+            total=Count('id'),
+            completed=Count('id', filter=Q(status='COMPLETED')),
+            in_progress=Count('id', filter=Q(status='IN_PROGRESS')),
+            pending=Count('id', filter=Q(status='PENDING'))
+        )
+        context["role"] = "manager"
+        return context
+
+
+class EmployeeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    template_name = "dashboard/user-dashboard.html"
+
+    def test_func(self):
+        return is_employee(self.request.user)
+
+
+
+
+
+
+
+# @user_passes_test(is_manager, login_url='no-permission')
+# def manager_dashboard(request):
+#     type = request.GET.get('type', 'all')
+
+    
+
+    
+#     counts = Task.objects.aggregate(
+#         total = Count('id'),
+#         completed = Count('id', filter=Q(status='COMPLETED')),
+#         in_progress=Count('id', filter=Q(status = 'IN_PROGRESS')),
+#         pending=Count('id', filter=Q(status = 'PENDING')),
+
+
+#         )
+    
+#     # Retriving task data
+
+#     base_query = Task.objects.select_related('details').prefetch_related('assigned_to')
+
+#     if type == 'completed':
+#         tasks = base_query.filter(status= 'COMPLETED')
+#     elif type == 'in-progress':
+#         tasks = base_query.filter(status= 'IN_PROGRESS')
+#     elif type == 'pending':
+#         tasks = base_query.filter(status= 'PENDING')
+#     elif type == 'all':
+#         tasks = base_query.all()
+
+
+#     context = {
+#         "tasks": tasks,
+#         "counts": counts,
+#         "role": 'manager'
+#     }
+#     return render(request, "dashboard/manager-dashboard.html", context)
+# @user_passes_test(is_employee)
+# def employee_dashboard(request):
+#     return render(request, "dashboard/user-dashboard.html")
 
 
 @login_required
@@ -158,6 +209,7 @@ def view_task(request):
     projects = Project.objects.annotate(
         num_task=Count('task')).order_by('num_task')
     return render(request, "show_task.html", {"projects": projects})
+
 
 @login_required
 @permission_required("tasks.view_task", login_url='no-permission')
